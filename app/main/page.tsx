@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
 import { RecipeCard, RecipeResponseDTO } from "@/components/recipe-card";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, ChevronLeft, ChevronRight, TrendingUp, LogIn } from "lucide-react";
+import { Sparkles, ChevronLeft, ChevronRight, TrendingUp, ThumbsUp } from "lucide-react";
 
 type SortOption = "CREATED_AT" | "INQUIRY_COUNT" | "RECOMMENDED_COUNT";
+type SectionType = "ai" | "recommended" | "popular";
 
 interface PageResponse {
   content: RecipeResponseDTO[];
@@ -19,11 +19,10 @@ interface PageResponse {
 }
 
 export default function MainPage() {
-  const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [topRecipes, setTopRecipes] = useState<RecipeResponseDTO[]>([]);
-  const [isAiRecommendation, setIsAiRecommendation] = useState(false);
-  const [topLoading, setTopLoading] = useState(false);
+  const [sectionType, setSectionType] = useState<SectionType>("recommended");
+  const [topLoading, setTopLoading] = useState(true);
   const [recipes, setRecipes] = useState<RecipeResponseDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>("CREATED_AT");
@@ -54,23 +53,42 @@ export default function MainPage() {
   const fetchPopularRecipes = useCallback(async () => {
     try {
       const response = await fetch(
-        "/studio-recipe/main-pages?page=0&size=10&direction=desc&sortBy=RECOMMENDED_COUNT"
+        "/studio-recipe/main-pages?page=0&size=10&direction=desc&sortBy=INQUIRY_COUNT"
       );
       if (response.ok) {
         const data: PageResponse = await response.json();
         setTopRecipes(data.content);
-        setIsAiRecommendation(false);
+        setSectionType("popular");
       }
     } catch (error) {
       console.error("Failed to fetch popular recipes:", error);
     }
   }, []);
 
+  const fetchRecommendedRecipes = useCallback(async () => {
+    try {
+      const response = await fetch(
+        "/studio-recipe/main-pages?page=0&size=10&direction=desc&sortBy=RECOMMENDED_COUNT"
+      );
+      if (response.ok) {
+        const data: PageResponse = await response.json();
+        if (data.content.length > 0) {
+          setTopRecipes(data.content);
+          setSectionType("recommended");
+        } else {
+          await fetchPopularRecipes();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch recommended recipes:", error);
+      await fetchPopularRecipes();
+    }
+  }, [fetchPopularRecipes]);
+
   const fetchAiRecommendations = useCallback(async () => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    setTopLoading(true);
     try {
       const response = await fetch(
         "/studio-recipe/recommend-recipes?k=10&lambda=0.8",
@@ -84,22 +102,21 @@ export default function MainPage() {
         const data: RecipeResponseDTO[] = await response.json();
         if (data.length > 0) {
           setTopRecipes(data);
-          setIsAiRecommendation(true);
+          setSectionType("ai");
         } else {
-          await fetchPopularRecipes();
+          await fetchRecommendedRecipes();
         }
       } else if (response.status === 401) {
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         setIsLoggedIn(false);
+        await fetchRecommendedRecipes();
       }
     } catch (error) {
       console.error("Failed to fetch AI recommendations:", error);
-      await fetchPopularRecipes();
-    } finally {
-      setTopLoading(false);
+      await fetchRecommendedRecipes();
     }
-  }, [fetchPopularRecipes]);
+  }, [fetchRecommendedRecipes]);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -108,9 +125,16 @@ export default function MainPage() {
     fetchAllRecipes(0, sortBy);
 
     if (token) {
-      fetchAiRecommendations();
+      const loadTopSection = async () => {
+        setTopLoading(true);
+        await fetchAiRecommendations();
+        setTopLoading(false);
+      };
+      loadTopSection();
+    } else {
+      setTopLoading(false);
     }
-  }, [fetchAllRecipes, fetchAiRecommendations, sortBy]);
+  }, [fetchAllRecipes, fetchAiRecommendations, fetchRecommendedRecipes, sortBy]);
 
   const handleSortChange = (value: SortOption) => {
     setSortBy(value);
@@ -125,78 +149,51 @@ export default function MainPage() {
   const sortOptions: { value: SortOption; label: string }[] = [
     { value: "CREATED_AT", label: "최신순" },
     { value: "INQUIRY_COUNT", label: "조회수순" },
-    { value: "RECOMMENDED_COUNT", label: "추천수순" },
+    { value: "RECOMMENDED_COUNT", label: "좋아요순" },
   ];
+
+  const sectionLabel = {
+    ai: { icon: <Sparkles className="size-6 text-primary" />, title: "AI 맞춤 추천", badge: { label: "AI 추천", variant: "default" as const } },
+    recommended: { icon: <ThumbsUp className="size-6 text-primary" />, title: "추천 레시피", badge: { label: "추천순", variant: "secondary" as const } },
+    popular: { icon: <TrendingUp className="size-6 text-primary" />, title: "인기 레시피", badge: { label: "인기순", variant: "secondary" as const } },
+  }[sectionType];
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="container mx-auto px-4 py-8">
-        {/* Login Banner for Non-Logged-In Users */}
-        {!isLoggedIn && (
-          <section className="mb-8">
-            <div className="flex flex-col items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/5 px-6 py-5 sm:flex-row">
-              <div className="flex items-center gap-3">
-                <Sparkles className="size-6 text-primary" />
-                <p className="text-center text-foreground sm:text-left">
-                  로그인하면 AI 맞춤 추천을 받을 수 있어요
-                </p>
-              </div>
-              <Button onClick={() => router.push("/login")} className="gap-2">
-                <LogIn className="size-4" />
-                로그인
-              </Button>
-            </div>
-          </section>
-        )}
+        {/* Top Section */}
+        <section className="mb-12">
+          <div className="mb-6 flex items-center gap-3">
+            {sectionLabel.icon}
+            <h2 className="text-2xl font-bold text-foreground">{sectionLabel.title}</h2>
+            <Badge variant={sectionLabel.badge.variant}>
+              {sectionLabel.badge.label}
+            </Badge>
+          </div>
 
-        {/* AI Recommendations or Popular Recipes Section */}
-        {isLoggedIn && (
-          <section className="mb-12">
-            <div className="mb-6 flex items-center gap-3">
-              {isAiRecommendation ? (
-                <>
-                  <Sparkles className="size-6 text-primary" />
-                  <h2 className="text-2xl font-bold text-foreground">AI 맞춤 추천</h2>
-                  <Badge variant="default" className="bg-primary text-primary-foreground">
-                    AI 추천
-                  </Badge>
-                </>
-              ) : (
-                <>
-                  <TrendingUp className="size-6 text-primary" />
-                  <h2 className="text-2xl font-bold text-foreground">인기 레시피</h2>
-                  <Badge variant="secondary" className="bg-secondary text-secondary-foreground">
-                    인기순
-                  </Badge>
-                </>
-              )}
+          {topLoading ? (
+            <div className="flex h-48 items-center justify-center">
+              <Spinner className="size-8 text-primary" />
             </div>
-
-            {topLoading ? (
-              <div className="flex h-48 items-center justify-center">
-                <Spinner className="size-8 text-primary" />
+          ) : topRecipes.length > 0 ? (
+            <div className="relative">
+              <div className="scrollbar-hide flex gap-4 overflow-x-auto pb-4">
+                {topRecipes.map((recipe) => (
+                  <div key={recipe.rcpSno} className="w-72 shrink-0">
+                    <RecipeCard recipe={recipe} />
+                  </div>
+                ))}
               </div>
-            ) : topRecipes.length > 0 ? (
-              <div className="relative">
-                <div className="scrollbar-hide flex gap-4 overflow-x-auto pb-4">
-                  {topRecipes.map((recipe) => (
-                    <div key={recipe.rcpSno} className="w-72 shrink-0">
-                      <RecipeCard recipe={recipe} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border">
-                <p className="text-muted-foreground">
-                  추천 레시피를 불러올 수 없습니다.
-                </p>
-              </div>
-            )}
-          </section>
-        )}
+            </div>
+          ) : (
+            <div className="flex h-48 items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/5 text-foreground">
+              <Sparkles className="size-5 text-primary" />
+              <p>로그인하면 AI 맞춤 추천을 받을 수 있어요</p>
+            </div>
+          )}
+        </section>
 
         {/* All Recipes Section */}
         <section>
@@ -233,7 +230,6 @@ export default function MainPage() {
                 ))}
               </div>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="mt-10 flex items-center justify-center gap-2">
                   <Button
