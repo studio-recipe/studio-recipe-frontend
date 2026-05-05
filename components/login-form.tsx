@@ -73,6 +73,14 @@ export function LoginForm() {
         String(data.refreshTokenExpiresIn)
       );
 
+      try {
+        const payload = JSON.parse(atob(data.accessToken.split(".")[1]));
+        const nick = payload.nickname ?? payload.name ?? null;
+        if (nick) localStorage.setItem("nickname", nick);
+      } catch {
+        // JWT 디코딩 실패 시 무시
+      }
+
       router.push("/main");
     } catch {
       setError("네트워크 오류가 발생했습니다. 다시 시도해주세요.");

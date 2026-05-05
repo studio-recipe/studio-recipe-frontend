@@ -178,10 +178,10 @@ export function RegisterForm() {
         `/studio-recipe/auth/check-nickname?nickname=${encodeURIComponent(formData.nickname)}`
       );
       const data = await response.json();
-      // API: isAvailable true = already taken, false = available
+      // Swagger: available=true → 사용 가능, available=false → 이미 사용 중
       setNicknameCheck({
         checked: true,
-        isAvailable: !data.isAvailable,
+        isAvailable: data.available,
         message: data.message,
       });
     } catch {

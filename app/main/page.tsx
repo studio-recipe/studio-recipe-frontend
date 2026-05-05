@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ChevronLeft, ChevronRight, TrendingUp, ThumbsUp } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 type SortOption = "CREATED_AT" | "INQUIRY_COUNT" | "RECOMMENDED_COUNT";
 type SectionType = "ai" | "recommended" | "popular";
@@ -86,31 +87,19 @@ export default function MainPage() {
   }, [fetchPopularRecipes]);
 
   const fetchAiRecommendations = useCallback(async () => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
+    if (!localStorage.getItem("accessToken")) return;
 
     try {
-      const response = await fetch(
-        "/studio-recipe/recommend-recipes?k=10&lambda=0.8",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await apiFetch("/studio-recipe/recommend-recipes?k=10&lambda=0.8");
       if (response.ok) {
         const data: RecipeResponseDTO[] = await response.json();
         if (data.length > 0) {
           setTopRecipes(data);
           setSectionType("ai");
         } else {
+          // Flask 미학습 상태: 인기순으로 폴백
           await fetchRecommendedRecipes();
         }
-      } else if (response.status === 401) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        setIsLoggedIn(false);
-        await fetchRecommendedRecipes();
       }
     } catch (error) {
       console.error("Failed to fetch AI recommendations:", error);
@@ -124,16 +113,16 @@ export default function MainPage() {
 
     fetchAllRecipes(0, sortBy);
 
-    if (token) {
-      const loadTopSection = async () => {
-        setTopLoading(true);
+    const loadTopSection = async () => {
+      setTopLoading(true);
+      if (token) {
         await fetchAiRecommendations();
-        setTopLoading(false);
-      };
-      loadTopSection();
-    } else {
+      } else {
+        await fetchRecommendedRecipes();
+      }
       setTopLoading(false);
-    }
+    };
+    loadTopSection();
   }, [fetchAllRecipes, fetchAiRecommendations, fetchRecommendedRecipes, sortBy]);
 
   const handleSortChange = (value: SortOption) => {

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RecipeResponseDTO } from "@/components/recipe-card";
+import { apiFetch } from "@/lib/api";
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -37,15 +38,6 @@ export default function RecipeDetailPage() {
   const [recommendations, setRecommendations] = useState<RecipeResponseDTO[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
 
-  const getAuthHeader = useCallback(() => {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      return { Authorization: `Bearer ${token}` };
-    }
-    return {};
-  }, []);
-
-  // Fetch recipe detail
   useEffect(() => {
     const fetchRecipe = async () => {
       try {
@@ -65,7 +57,27 @@ export default function RecipeDetailPage() {
     fetchRecipe();
   }, [rcpSno]);
 
-  // Check login status and fetch initial recommendations
+  const fetchRecommendations = useCallback(async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) return;
+
+    setIsLoadingRecommendations(true);
+    try {
+      const response = await apiFetch(
+        `/studio-recipe/recommend-recipes?k=10&lambda=0.8&seedRecipeId=${rcpSno}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setRecommendations(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch recommendations:", error);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  }, [rcpSno]);
+
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     setIsLoggedIn(!!token);
@@ -73,84 +85,44 @@ export default function RecipeDetailPage() {
     if (token) {
       fetchRecommendations();
     }
-  }, []);
-
-  const fetchRecommendations = async () => {
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
-
-    setIsLoadingRecommendations(true);
-    try {
-      const response = await fetch(
-        `/studio-recipe/recommend-recipes?k=10&lambda=0.8&seedRecipeId=${rcpSno}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setRecommendations(data);
-      } else if (response.status === 401) {
-        localStorage.removeItem("accessToken");
-        setIsLoggedIn(false);
-      }
-    } catch (error) {
-      console.error("Failed to fetch recommendations:", error);
-    } finally {
-      setIsLoadingRecommendations(false);
-    }
-  };
+  }, [fetchRecommendations]);
 
   const handleLike = async () => {
     if (!isLoggedIn) {
-      toast({
-        title: "로그인이 필요한 서비스입니다",
-        variant: "destructive",
-      });
+      router.push("/login");
       return;
     }
 
-    const token = localStorage.getItem("accessToken");
-    if (!token) return;
-
     setIsLiking(true);
 
-    // Optimistic update
     const newLiked = !liked;
     setLiked(newLiked);
     setLikeCount((prev) => (newLiked ? prev + 1 : prev - 1));
 
     try {
-      const response = await fetch(`/studio-recipe/likes/${rcpSno}`, {
+      const response = await apiFetch(`/studio-recipe/likes/${rcpSno}`, {
         method: newLiked ? "POST" : "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (response.ok) {
-        // Fetch updated recommendations
-        setIsLoadingRecommendations(true);
-        await fetchRecommendations();
-        toast({
-          title: "추천 레시피가 업데이트되었습니다 ✨",
-        });
-      } else if (response.status === 401) {
-        // Revert optimistic update
+        try {
+          const data = await response.json();
+          if (typeof data.liked === "boolean") {
+            setLiked(data.liked);
+            setLikeCount(data.likeCount);
+          }
+        } catch {
+          // DELETE 응답 본문이 없는 경우 optimistic 상태 유지
+        }
+        fetchRecommendations();
+        toast({ title: "추천 레시피가 업데이트되었습니다 ✨" });
+      } else if (response.status !== 401) {
         setLiked(!newLiked);
         setLikeCount((prev) => (newLiked ? prev - 1 : prev + 1));
-        localStorage.removeItem("accessToken");
-        setIsLoggedIn(false);
-        toast({
-          title: "로그인이 필요한 서비스입니다",
-          variant: "destructive",
-        });
+        toast({ title: "좋아요 처리에 실패했습니다", variant: "destructive" });
       }
     } catch (error) {
-      // Revert optimistic update on error
+      // 401 외 네트워크 오류
       setLiked(!newLiked);
       setLikeCount((prev) => (newLiked ? prev - 1 : prev + 1));
       console.error("Failed to toggle like:", error);
@@ -191,7 +163,6 @@ export default function RecipeDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Back button */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-3">
           <Button
@@ -205,7 +176,6 @@ export default function RecipeDetailPage() {
         </div>
       </div>
 
-      {/* Hero image */}
       <div className="relative aspect-video w-full overflow-hidden md:aspect-[21/9]">
         {recipe.rcpImgUrl ? (
           <Image
@@ -224,7 +194,6 @@ export default function RecipeDetailPage() {
       </div>
 
       <div className="container mx-auto px-4 pb-12">
-        {/* Title and category */}
         <div className="-mt-16 relative z-10">
           <div className="flex items-start gap-3">
             <span className="rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground">
@@ -236,7 +205,6 @@ export default function RecipeDetailPage() {
           </h1>
         </div>
 
-        {/* Info row */}
         <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
           {recipe.ckgInbunNm && (
             <div className="flex items-center gap-1.5">
@@ -262,7 +230,6 @@ export default function RecipeDetailPage() {
           </div>
         </div>
 
-        {/* Method badges */}
         <div className="mt-4 flex flex-wrap gap-2">
           {recipe.ckgMthActoNm && (
             <span className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs text-secondary-foreground">
@@ -284,7 +251,6 @@ export default function RecipeDetailPage() {
           )}
         </div>
 
-        {/* Like button */}
         <div className="mt-6">
           <Button
             variant={liked ? "default" : "outline"}
@@ -302,7 +268,6 @@ export default function RecipeDetailPage() {
           </Button>
         </div>
 
-        {/* Ingredients section */}
         {ingredients.length > 0 && (
           <div className="mt-8">
             <h2 className="mb-4 text-lg font-semibold text-foreground">재료</h2>
@@ -319,7 +284,6 @@ export default function RecipeDetailPage() {
           </div>
         )}
 
-        {/* Recommendations section */}
         <div className="mt-12">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
             이 레시피를 좋아하면 이런 레시피도 좋아요
@@ -330,10 +294,7 @@ export default function RecipeDetailPage() {
               <CardContent className="flex flex-col items-center justify-center gap-4 py-12">
                 <ChefHat className="size-12 text-muted-foreground" />
                 <p className="text-muted-foreground">추천 레시피를 보려면 로그인하세요</p>
-                <Button
-                  onClick={() => router.push("/login")}
-                  className="gap-2"
-                >
+                <Button onClick={() => router.push("/login")} className="gap-2">
                   <LogIn className="size-4" />
                   로그인
                 </Button>

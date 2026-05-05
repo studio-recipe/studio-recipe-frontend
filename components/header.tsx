@@ -4,15 +4,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ChefHat, LogIn, LogOut } from "lucide-react";
+import { ChefHat, LogIn, LogOut, User, UserPlus } from "lucide-react";
 
 export function Header() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [nickname, setNickname] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
+    const storedNickname = localStorage.getItem("nickname");
     setIsLoggedIn(!!token);
+    setNickname(storedNickname);
   }, []);
 
   const handleLogout = () => {
@@ -20,8 +23,10 @@ export function Header() {
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("accessTokenExpiresIn");
     localStorage.removeItem("refreshTokenExpiresIn");
+    localStorage.removeItem("nickname");
     setIsLoggedIn(false);
-    router.refresh();
+    setNickname(null);
+    router.push("/login");
   };
 
   return (
@@ -33,23 +38,37 @@ export function Header() {
         </Link>
 
         {isLoggedIn ? (
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="gap-2"
-          >
-            <LogOut className="size-4" />
-            로그아웃
-          </Button>
+          <div className="flex items-center gap-3">
+            {nickname && (
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <User className="size-4" />
+                <span className="font-medium text-foreground">{nickname}</span>
+              </div>
+            )}
+            <Button variant="outline" onClick={handleLogout} className="gap-2">
+              <LogOut className="size-4" />
+              로그아웃
+            </Button>
+          </div>
         ) : (
-          <Button
-            variant="default"
-            onClick={() => router.push("/login")}
-            className="gap-2"
-          >
-            <LogIn className="size-4" />
-            로그인
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => router.push("/register")}
+              className="gap-2"
+            >
+              <UserPlus className="size-4" />
+              회원가입
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => router.push("/login")}
+              className="gap-2"
+            >
+              <LogIn className="size-4" />
+              로그인
+            </Button>
+          </div>
         )}
       </div>
     </header>

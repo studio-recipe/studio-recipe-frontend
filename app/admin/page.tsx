@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -104,23 +105,16 @@ export default function AdminDashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [animateMetrics, setAnimateMetrics] = useState(false);
 
-  const getAuthHeader = useCallback(() => {
-    const token = localStorage.getItem("accessToken");
-    if (token) {
-      return { Authorization: `Bearer ${token}` };
+  // 비로그인 시 즉시 리다이렉트
+  useEffect(() => {
+    if (!localStorage.getItem("accessToken")) {
+      router.push("/login");
     }
-    return {};
-  }, []);
+  }, [router]);
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const res = await fetch("/studio-recipe/admin/metrics", {
-        headers: getAuthHeader(),
-      });
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
+      const res = await apiFetch("/studio-recipe/admin/metrics");
       if (res.ok) {
         const data = await res.json();
         setMetrics(data);
@@ -135,17 +129,11 @@ export default function AdminDashboardPage() {
     } finally {
       setIsLoadingMetrics(false);
     }
-  }, [getAuthHeader, router]);
+  }, []);
 
   const fetchTrainingStatus = useCallback(async () => {
     try {
-      const res = await fetch("/studio-recipe/admin/train-bpr/status", {
-        headers: getAuthHeader(),
-      });
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
+      const res = await apiFetch("/studio-recipe/admin/train-bpr/status");
       if (res.ok) {
         const data = await res.json();
         if (data.ok) {
@@ -157,7 +145,7 @@ export default function AdminDashboardPage() {
     } finally {
       setIsLoadingTrainingStatus(false);
     }
-  }, [getAuthHeader, router]);
+  }, []);
 
   useEffect(() => {
     fetchMetrics();
@@ -177,14 +165,9 @@ export default function AdminDashboardPage() {
   const handleRecomputeMetrics = async () => {
     setIsRecomputing(true);
     try {
-      const res = await fetch("/studio-recipe/admin/metrics/recompute", {
+      const res = await apiFetch("/studio-recipe/admin/metrics/recompute", {
         method: "POST",
-        headers: getAuthHeader(),
       });
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
       if (res.ok) {
         const data = await res.json();
         if (data.ok && data.saved) {
@@ -215,14 +198,9 @@ export default function AdminDashboardPage() {
   const handleStartTraining = async () => {
     setIsStartingTraining(true);
     try {
-      const res = await fetch("/studio-recipe/admin/train-bpr", {
+      const res = await apiFetch("/studio-recipe/admin/train-bpr", {
         method: "POST",
-        headers: getAuthHeader(),
       });
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
       if (res.ok) {
         const data = await res.json();
         if (data.ok) {
