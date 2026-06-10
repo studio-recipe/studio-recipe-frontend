@@ -14,6 +14,7 @@ interface LoginResponse {
   refreshToken: string;
   accessTokenExpiresIn: number;
   refreshTokenExpiresIn: number;
+  role: string;
 }
 
 export function LoginForm() {
@@ -64,19 +65,18 @@ export function LoginForm() {
       const data: LoginResponse = await response.json();
       localStorage.setItem("accessToken", data.accessToken);
       localStorage.setItem("refreshToken", data.refreshToken);
-      localStorage.setItem(
-        "accessTokenExpiresIn",
-        String(data.accessTokenExpiresIn)
-      );
-      localStorage.setItem(
-        "refreshTokenExpiresIn",
-        String(data.refreshTokenExpiresIn)
-      );
+      localStorage.setItem("accessTokenExpiresIn", String(data.accessTokenExpiresIn));
+      localStorage.setItem("refreshTokenExpiresIn", String(data.refreshTokenExpiresIn));
+      localStorage.setItem("role", data.role);
 
       try {
         const payload = JSON.parse(atob(data.accessToken.split(".")[1]));
         const nick = payload.nickname ?? payload.name ?? null;
         if (nick) localStorage.setItem("nickname", nick);
+        // API 응답 role이 없을 경우 JWT claim에서 보조 추출
+        if (!data.role && payload.role) {
+          localStorage.setItem("role", payload.role);
+        }
       } catch {
         // JWT 디코딩 실패 시 무시
       }

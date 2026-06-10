@@ -31,11 +31,12 @@ export default function MainPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  const fetchAllRecipes = useCallback(async (page: number, sort: SortOption) => {
+  const fetchAllRecipes = useCallback(async (page: number, sort: SortOption, signal?: AbortSignal) => {
     setLoading(true);
     try {
       const response = await fetch(
-        `/studio-recipe/main-pages?page=${page}&size=12&direction=desc&sortBy=${sort}`
+        `/studio-recipe/main-pages?page=${page}&size=12&direction=desc&sortBy=${sort}`,
+        signal ? { signal } : {}
       );
       if (response.ok) {
         const data: PageResponse = await response.json();
@@ -45,9 +46,11 @@ export default function MainPage() {
         setCurrentPage(data.number);
       }
     } catch (error) {
-      console.error("Failed to fetch recipes:", error);
+      if ((error as DOMException).name !== "AbortError") {
+        console.error("Failed to fetch recipes:", error);
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
@@ -107,11 +110,10 @@ export default function MainPage() {
     }
   }, [fetchRecommendedRecipes]);
 
+  // 마운트 시 1회: 인증 확인 + 상단 추천 섹션 로드
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
     setIsLoggedIn(!!token);
-
-    fetchAllRecipes(0, sortBy);
 
     const loadTopSection = async () => {
       setTopLoading(true);
@@ -123,11 +125,17 @@ export default function MainPage() {
       setTopLoading(false);
     };
     loadTopSection();
-  }, [fetchAllRecipes, fetchAiRecommendations, fetchRecommendedRecipes, sortBy]);
+  }, [fetchAiRecommendations, fetchRecommendedRecipes]); // 두 콜백은 stable → 사실상 mount-only
+
+  // sortBy 변경 시 레시피 목록 재조회. AbortController로 StrictMode 이중 실행 방지
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchAllRecipes(0, sortBy, controller.signal);
+    return () => controller.abort();
+  }, [sortBy, fetchAllRecipes]);
 
   const handleSortChange = (value: SortOption) => {
-    setSortBy(value);
-    fetchAllRecipes(0, value);
+    setSortBy(value); // useEffect가 sortBy 변화를 감지해 fetchAllRecipes 호출
   };
 
   const handlePageChange = (page: number) => {

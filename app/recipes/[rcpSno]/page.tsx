@@ -18,10 +18,23 @@ import {
   UtensilsCrossed,
   Leaf,
   LogIn,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RecipeResponseDTO } from "@/components/recipe-card";
 import { apiFetch } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -35,6 +48,7 @@ export default function RecipeDetailPage() {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [isLiking, setIsLiking] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [recommendations, setRecommendations] = useState<RecipeResponseDTO[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
 
@@ -128,6 +142,28 @@ export default function RecipeDetailPage() {
       console.error("Failed to toggle like:", error);
     } finally {
       setIsLiking(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await apiFetch(`/studio-recipe/recipes/${rcpSno}`, { method: "DELETE" });
+      if (res.status === 204 || res.ok) {
+        toast({ title: "레시피가 삭제되었습니다." });
+        router.push("/main");
+      } else if (res.status === 403) {
+        toast({ title: "권한이 없습니다.", variant: "destructive" });
+      } else if (res.status === 404) {
+        toast({ title: "존재하지 않는 레시피입니다.", variant: "destructive" });
+        router.push("/main");
+      } else {
+        toast({ title: "삭제에 실패했습니다.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "네트워크 오류가 발생했습니다.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -251,7 +287,7 @@ export default function RecipeDetailPage() {
           )}
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <Button
             variant={liked ? "default" : "outline"}
             size="lg"
@@ -266,6 +302,51 @@ export default function RecipeDetailPage() {
             <span>좋아요</span>
             <span className="ml-1 font-semibold">{likeCount.toLocaleString()}</span>
           </Button>
+
+          {isLoggedIn && (
+            <>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => router.push(`/recipes/${rcpSno}/edit`)}
+                className="gap-2"
+              >
+                <Pencil className="size-4" />
+                수정
+              </Button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    disabled={isDeleting}
+                    className="gap-2 border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                    삭제
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>레시피를 삭제하시겠습니까?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      이 작업은 되돌릴 수 없습니다. 레시피가 영구적으로 삭제됩니다.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      삭제
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
         </div>
 
         {ingredients.length > 0 && (

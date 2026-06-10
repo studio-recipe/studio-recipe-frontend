@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "studio-recipe-api": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-openapi-schema-explorer@latest",
+        "http://localhost:8080/v3/api-docs",
+        "--output-format",
+        "yaml"
+      ],
+      "env": {}
+    }
+  }
+}

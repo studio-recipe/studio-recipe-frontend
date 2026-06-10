@@ -1,3 +1,5 @@
+import { logout } from "@/utils/auth";
+
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem("accessToken");
 
@@ -11,12 +13,14 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
   const response = await fetch(url, { ...options, headers: mergedHeaders });
 
   if (response.status === 401) {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("accessTokenExpiresIn");
-    localStorage.removeItem("refreshTokenExpiresIn");
-    localStorage.removeItem("nickname");
+    logout();
     window.location.href = "/login";
+  }
+
+  if (response.status === 403) {
+    const { toast } = await import("@/hooks/use-toast");
+    toast({ title: "접근 권한이 없습니다.", variant: "destructive" });
+    window.location.href = "/";
   }
 
   return response;

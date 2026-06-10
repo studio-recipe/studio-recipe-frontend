@@ -178,10 +178,11 @@ export function RegisterForm() {
         `/studio-recipe/auth/check-nickname?nickname=${encodeURIComponent(formData.nickname)}`
       );
       const data = await response.json();
-      // Swagger: available=true → 사용 가능, available=false → 이미 사용 중
+      // 백엔드: available=true → 이미 존재(사용 불가), available=false → 사용 가능
+      const exists = data.available ?? data.isAvailable ?? true;
       setNicknameCheck({
         checked: true,
-        isAvailable: data.available,
+        isAvailable: !exists,
         message: data.message,
       });
     } catch {
@@ -487,7 +488,7 @@ export function RegisterForm() {
         {/* 제출 버튼 */}
         <Button
           type="submit"
-          disabled={isSubmitting || !isFormValid()}
+          disabled={isSubmitting}
           className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           size="lg"
         >
