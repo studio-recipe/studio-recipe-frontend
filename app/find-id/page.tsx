@@ -29,7 +29,7 @@ export default function FindIdPage() {
       const res = await fetch("/studio-recipe/auth/send-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, purpose: "FIND_ID" }),
       });
       if (res.ok) {
         setStep("verify");
@@ -68,8 +68,8 @@ export default function FindIdPage() {
         body: JSON.stringify({ token }),
       });
       if (findRes.ok) {
-        const findData = await findRes.json();
-        setFoundId(findData.id || findData.userId || findData.username || "");
+        const raw = await findRes.text();
+        setFoundId(raw.replace(/^"|"$/g, ""));
         setStep("result");
       } else {
         setError("아이디를 찾을 수 없습니다.");

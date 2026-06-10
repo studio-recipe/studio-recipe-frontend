@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Heart, Clock, Users, ChefHat } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
 export interface RecipeResponseDTO {
   rcpSno: number;
@@ -39,29 +40,34 @@ export function RecipeCard({ recipe, onLikeToggle, isLiked = false }: RecipeCard
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    const token = localStorage.getItem("accessToken");
-    if (!token) {
+
+    if (!localStorage.getItem("accessToken")) {
       router.push("/login");
       return;
     }
 
+    const newLiked = !liked;
     setIsLiking(true);
     try {
-      const response = await fetch(`/studio-recipe/likes/${recipe.rcpSno}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await apiFetch(`/studio-recipe/likes/${recipe.rcpSno}`, {
+        method: newLiked ? "POST" : "DELETE",
       });
 
       if (response.ok) {
-        setLiked(!liked);
-        setLikeCount((prev) => (liked ? prev - 1 : prev + 1));
+        if (newLiked) {
+          try {
+            const data = await response.json();
+            setLiked(typeof data.liked === "boolean" ? data.liked : newLiked);
+            setLikeCount(typeof data.likeCount === "number" ? data.likeCount : likeCount + 1);
+          } catch {
+            setLiked(newLiked);
+            setLikeCount((prev) => prev + 1);
+          }
+        } else {
+          setLiked(false);
+          setLikeCount((prev) => prev - 1);
+        }
         onLikeToggle?.(recipe.rcpSno);
-      } else if (response.status === 401) {
-        localStorage.removeItem("accessToken");
-        router.push("/login");
       }
     } catch (error) {
       console.error("Failed to toggle like:", error);
