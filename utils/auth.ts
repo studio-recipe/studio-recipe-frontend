@@ -16,8 +16,21 @@ export const isLoggedIn = (): boolean => !!getToken();
 
 export const isAdmin = (): boolean => getRole() === "ROLE_ADMIN";
 
-export const logout = (): void => {
+export const logout = async (): Promise<void> => {
   if (typeof window === "undefined") return;
+
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (refreshToken) {
+    try {
+      await fetch("/studio-recipe/auth/logout", {
+        method: "POST",
+        headers: { "Refresh-Token": refreshToken },
+      });
+    } catch {
+      // 네트워크 오류가 나도 로컬 로그아웃은 계속 진행한다.
+    }
+  }
+
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
   localStorage.removeItem("accessTokenExpiresIn");

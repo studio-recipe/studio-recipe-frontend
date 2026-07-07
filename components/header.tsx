@@ -21,8 +21,8 @@ export function Header() {
     setAdminUser(isAdmin());
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setIsLoggedIn(false);
     setNickname(null);
     setAdminUser(false);
